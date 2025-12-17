@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Awesome Interactive Spider Graph Maker v3</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { padding: 20px; background: #f8f9fa; color: #212529; transition: background 0.3s, color 0.3s; }
+    body.dark { background: #121212; color: #e0e0e0; }
+    body.dark .card,
+    body.dark .chart-container { background: #1e1e1e; border-color: #444; }
+    body.dark .form-control,
+    body.dark .form-select,
+    body.dark .form-control-color { background: #2c2c2c; color: #e0e0e0; border-color: #444; }
+    body.dark .form-check-label { color: #e0e0e0; }
+    .chart-container { position: relative; height: 700px; margin: 30px 0; background: white; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 20px; transition: background 0.3s; }
+    body.dark .chart-container { box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+    .dataset { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; transition: background 0.3s; }
+    body.dark .dataset { background: #1e1e1e; }
+    .value-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .value-item label { min-width: 120px; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="text-center mb-4">🕷️ Awesome Interactive Spider Graph Maker v3</h1>
+    <p class="text-center text-muted mb-5">Smoother updates, dark mode, accessibility improvements, and better visual distinction for colorblind users!</p>
+
+    <div class="row">
+      <div class="col-lg-8 mx-auto">
+        <div class="mb-4">
+          <label class="form-label fw-bold">Chart Title</label>
+          <input type="text" id="title" class="form-control" value="Spider Graph Comparison">
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">Axis Labels (comma-separated, ≥3)</label>
+          <input type="text" id="labels" class="form-control" value="Strength, Speed, Intelligence, Durability, Agility, Stamina">
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">Scale Max Value</label>
+          <input type="number" id="maxScale" class="form-control" value="100" min="10" step="10">
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">Load Preset</label>
+          <select id="presets" class="form-select">
+            <option value="">Choose a preset...</option>
+            <option value="superheroes">Superhero Stats</option>
+            <option value="rpg">RPG Character Classes</option>
+          </select>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mb-4">
+          <button class="btn btn-primary" onclick="addDataset()">+ Add Dataset</button>
+          <button class="btn btn-success" onclick="exportPNG()">Download PNG</button>
+          <button class="btn btn-info" onclick="exportJSON()">Export JSON Config</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import JSON Config</button>
+          <button class="btn btn-outline-secondary" id="darkToggle">🌙 Dark Mode</button>
+          <input type="file" id="importFile" accept=".json" style="display:none;">
+        </div>
+
+        <div id="datasets" class="mb-4"></div>
+
+        <div class="chart-container">
+          <canvas id="chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let chart = null;
+    let previousMaxScale = 100;
+
+    const presetsData = {
+      superheroes: {
+        title: "Superhero Comparison",
+        labels: ["Strength", "Speed", "Intelligence", "Durability", "Agility", "Stamina"],
+        maxScale: 100,
+        datasets: [
+          { name: "Spider-Man", color: "#e61919", data: [70, 95, 85, 75, 100, 90], fill: true },
+          { name: "Batman", color: "#1a1a1a", data: [60, 65, 100, 70, 80, 85], fill: true },
+          { name: "Superman", color: "#0066ff", data: [100, 100, 80, 100, 70, 100], fill: true }
+        ]
+      },
+      rpg: {
+        title: "RPG Class Comparison",
+        labels: ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"],
+        maxScale: 20,
+        datasets: [
+          { name: "Warrior", color: "#c41e3a", data: [18, 10, 16, 8, 10, 10], fill: true },
+          { name: "Rogue", color: "#333333", data: [10, 18, 12, 10, 12, 14], fill: true },
+          { name: "Wizard", color: "#9932cc", data: [8, 10, 10, 18, 14, 10], fill: true }
+        ]
+      }
+    };
+
+    function getCurrentConfig() {
+      const labelsInput = document.getElementById('labels').value;
+      const labels = labelsInput.split(',').map(l => l.trim()).filter(l => l);
+      const title = document.getElementById('title').value;
+      const maxScale = parseInt(document.getElementById('maxScale').value) || 100;
+
+      const datasets = [];
+      document.querySelectorAll('.dataset').forEach(div => {
+        const name = div.querySelector('.name').value.trim() || 'Untitled';
+        const color = div.querySelector('.color').value;
+        const fill = div.querySelector('.fill-toggle').checked;
+        const data = [];
+        div.querySelectorAll('.value-range').forEach(inp => {
+          data.push(parseFloat(inp.value) || 0);
+        });
+        datasets.push({ name, color, fill, data });
+      });
+
+      return { title, labels, maxScale, datasets };
+    }
+
+    function updateSlidersMaxAndScale() {
+      const newMax = parseInt(document.getElementById('maxScale').value) || 100;
+      const ratio = newMax / previousMaxScale;
+
+      document.querySelectorAll('.value-range, .value-num').forEach(input => {
+        let val = parseFloat(input.value) || 0;
+        val = Math.round(val * ratio);
+        val = Math.min(val, newMax);
+        input.value = val;
+
+        input.max = newMax;
+        input.setAttribute('aria-valuemax', newMax);
+        input.setAttribute('aria-valuenow', val);
+      });
+
+      previousMaxScale = newMax;
+    }
+
+    function rebuildValueInputs() {
+      const labelsInput = document.getElementById('labels').value;
+      const newLabels = labelsInput.split(',').map(l => l.trim()).filter(l => l);
+      if (newLabels.length < 3) {
+        alert('Please enter at least 3 axis labels.');
+        return;
+      }
+
+      const maxScale = parseInt(document.getElementById('maxScale').value) || 100;
+      const defaultVal = Math.round(maxScale / 2);
+
+      // Collect current meta and data
+      const datasetsMeta = [];
+      const datasetsData = [];
+      document.querySelectorAll('.dataset').forEach(div => {
+        datasetsMeta.push({
+          name: div.querySelector('.name').value.trim() || 'Untitled',
+          color: div.querySelector('.color').value,
+          fill: div.querySelector('.fill-toggle').checked
+        });
+        const data = [];
+        div.querySelectorAll('.value-range').forEach(range => {
+          data.push(parseFloat(range.value) || 0);
+        });
+        datasetsData.push(data);
+      });
+
+      // Adjust data lengths
+      datasetsData.forEach(data => {
+        while (data.length < newLabels.length) data.push(defaultVal);
+        if (data.length > newLabels.length) data.length = newLabels.length;
+      });
+
+      // Clear existing sliders
+      document.querySelectorAll('.values').forEach(v => v.innerHTML = '');
+
+      // Render new sliders
+      document.querySelectorAll('.dataset').forEach((div, dsIndex) => {
+        const valuesDiv = div.querySelector('.values');
+        const dsName = datasetsMeta[dsIndex].name;
+        newLabels.forEach((label, i) => {
+          const val = datasetsData[dsIndex][i];
+          const item = document.createElement('div');
+          item.className = 'value-item';
+          item.innerHTML = `
+            <label>${label}</label>
+            <input type="range" class="form-range value-range" min="0" max="${maxScale}" step="1" value="${val}"
+              aria-label="${label} value for ${dsName}" aria-valuemin="0" aria-valuemax="${maxScale}" aria-valuenow="${val}">
+            <input type="number" class="form-control value-num" min="0" max="${maxScale}" value="${val}" style="width: 80px;">
+          `;
+          valuesDiv.appendChild(item);
+
+          const range = item.querySelector('.value-range');
+          const num = item.querySelector('.value-num');
+          range.addEventListener('input', () => {
+            num.value = range.value;
+            num.setAttribute('aria-valuenow', range.value);
+            updateChart();
+          });
+          num.addEventListener('input', () => {
+            let v = parseFloat(num.value) || 0;
+            v = Math.max(0, Math.min(maxScale, v));
+            num.value = v;
+            range.value = v;
+            range.setAttribute('aria-valuenow', v);
+            updateChart();
+          });
+        });
+      });
+
+      updateChart();
+    }
+
+    function updateChart() {
+      const config = getCurrentConfig();
+      if (config.labels.length < 3) return;
+
+      const pointStyles = ['circle', 'cross', 'rect', 'rectRot', 'star', 'triangle'];
+      const dashPatterns = [[], [5,5], [10,5], [2,8], [15,3,3,3], [8,4]];
+
+      chart.data.labels = config.labels;
+      chart.data.datasets = config.datasets.map((ds, index) => ({
+        label: ds.name,
+        data: ds.data,
+        backgroundColor: ds.fill ? ds.color + '44' : 'transparent',
+        borderColor: ds.color,
+        pointBackgroundColor: ds.color,
+        borderWidth: 4,
+        pointRadius: 5,
+        pointHoverRadius: 8,
+        fill: ds.fill,
+        borderDash: dashPatterns[index % dashPatterns.length],
+        pointStyle: pointStyles[index % pointStyles.length]
+      }));
+
+      const isDark = document.body.classList.contains('dark');
+      const textColor = isDark ? '#e0e0e0' : '#212529';
+      const gridColor = isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)';
+
+      chart.options.plugins.title.text = config.title;
+      chart.options.plugins.title.color = textColor;
+      chart.options.plugins.legend.labels.color = textColor;
+      chart.options.scales.r.max = config.maxScale;
+      chart.options.scales.r.ticks.color = textColor;
+      chart.options.scales.r.pointLabels.color = textColor;
+      chart.options.scales.r.grid.color = gridColor;
+      chart.options.scales.r.angleLines.color = gridColor;
+      chart.options.scales.r.ticks.stepSize = Math.max(10, config.maxScale / 10);
+
+      chart.update();
+    }
+
+    function addDataset(name = null, color = null, fill = true) {
+      const randomColor = color || '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+      const datasetCount = document.querySelectorAll('.dataset').length + 1;
+      const datasetName = name || `Dataset ${datasetCount}`;
+
+      const div = document.createElement('div');
+      div.className = 'dataset card mb-3';
+      div.innerHTML = `
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <input type="text" class="form-control name" value="${datasetName}" style="width: auto;">
+          <button type="button" class="btn btn-close" aria-label="Remove dataset"></button>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Color</label>
+              <input type="color" class="form-control form-control-color color" value="${randomColor}">
+            </div>
+            <div class="col-md-6 mb-3 d-flex align-items-end">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input fill-toggle" ${fill ? 'checked' : ''}>
+                <label class="form-check-label">Filled Area</label>
+              </div>
+            </div>
+          </div>
+          <div class="values"></div>
+        </div>
+      `;
+      document.getElementById('datasets').appendChild(div);
+
+      div.querySelector('.name').addEventListener('input', updateChart);
+      div.querySelector('.color').addEventListener('input', updateChart);
+      div.querySelector('.fill-toggle').addEventListener('change', updateChart);
+      div.querySelector('.btn-close').addEventListener('click', () => {
+        div.remove();
+        rebuildValueInputs();
+      });
+
+      rebuildValueInputs();
+    }
+
+    function exportPNG() {
+      const link = document.createElement('a');
+      link.download = 'spider-graph.png';
+      link.href = chart.toBase64Image();
+      link.click();
+    }
+
+    function exportJSON() {
+      const config = getCurrentConfig();
+      config.title = document.getElementById('title').value;
+      config.labels = config.labels; // already has
+      config.maxScale = parseInt(document.getElementById('maxScale').value);
+      const json = JSON.stringify(config, null, 2);
+      const blob = new Blob([json], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'spider-graph-config.json';
+      a.click();
+    }
+
+    function loadConfig(conf) {
+      document.getElementById('title').value = conf.title || 'Spider Graph Comparison';
+      document.getElementById('labels').value = conf.labels.join(', ');
+      document.getElementById('maxScale').value = conf.maxScale || 100;
+      previousMaxScale = conf.maxScale || 100;
+
+      document.getElementById('datasets').innerHTML = '';
+
+      conf.datasets.forEach(ds => {
+        addDataset(ds.name, ds.color, ds.fill); // uses the full addDataset (creates div + listeners + rebuild)
+      });
+
+      // Override imported values (after defaults are set by rebuild)
+      document.querySelectorAll('.values').forEach((valuesDiv, dsIndex) => {
+        const importedData = conf.datasets[dsIndex]?.data || [];
+        valuesDiv.querySelectorAll('.value-range').forEach((range, i) => {
+          const val = importedData[i] !== undefined ? importedData[i] : parseFloat(range.value);
+          range.value = val;
+          range.setAttribute('aria-valuenow', val);
+          range.closest('.value-item').querySelector('.value-num').value = val;
+        });
+      });
+
+      updateSlidersMaxAndScale();
+      updateChart();
+    }
+
+    window.onload = () => {
+      const ctx = document.getElementById('chart').getContext('2d');
+      chart = new Chart(ctx, {
+        type: 'radar',
+        data: { labels: [], datasets: [] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: '', font: { size: 20 } },
+            legend: { position: 'top' },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            r: {
+              beginAtZero: true,
+              min: 0,
+              max: 100,
+              ticks: { stepSize: 10 },
+              grid: { color: 'rgba(0,0,0,0.1)' },
+              angleLines: { color: 'rgba(0,0,0,0.1)' }
+            }
+          }
+        }
+      });
+
+      addDataset();
+      addDataset();
+      rebuildValueInputs();
+
+      document.getElementById('title').addEventListener('input', updateChart);
+      document.getElementById('labels').addEventListener('input', rebuildValueInputs);
+      document.getElementById('maxScale').addEventListener('input', () => {
+        updateSlidersMaxAndScale();
+        updateChart();
+      });
+
+      document.getElementById('darkToggle').addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        updateChart();
+      });
+
+      document.getElementById('presets').addEventListener('change', (e) => {
+        if (e.target.value && presetsData[e.target.value]) {
+          loadConfig(presetsData[e.target.value]);
+          e.target.value = '';
+        }
+      });
+
+      document.getElementById('importFile').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const conf = JSON.parse(ev.target.result);
+            loadConfig(conf);
+          } catch (err) {
+            alert('Invalid JSON file');
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+    };
+  </script>
+</body>
+</html>
