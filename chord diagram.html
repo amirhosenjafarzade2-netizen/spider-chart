@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Interactive Chord Diagram Generator</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; color: #333; }
+    h1, h2 { color: #2c3e50; }
+    p { max-width: 900px; }
+    #editor { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 30px; }
+    #matrixTable { border-collapse: collapse; margin: 20px 0; }
+    #matrixTable th, #matrixTable td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    #matrixTable th { background: #f0f0f0; }
+    #matrixTable input[type="text"] { width: 120px; padding: 4px; }
+    #matrixTable input[type="number"] { width: 70px; padding: 4px; text-align: center; }
+    #matrixTable input:disabled { background: #eee; color: #999; }
+    button { marginy: margin: 10px 10px 10px 0; padding: 10px 20px; font-size: 16px; cursor: pointer; background: #3498db; color: white; border: none; border-radius: 4px; }
+    button:hover { background: #2980b9; }
+    #controls button { margin-right: 10px; }
+    #download { margin-top: 20px; text-align: center; }
+    #chart { margin-top: 40px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Interactive Chord Diagram Generator</h1>
+  <p>This tool lets you easily create beautiful chord diagrams. Edit group names in the top row of the table. Enter connection strengths (numbers ≥ 0) in the matrix cells. Diagonal values are ignored (always 0). Check "Symmetric" to automatically mirror values for undirected relationships.</p>
+
+  <div id="editor">
+    <h2>Matrix Editor</h2>
+    <label><input type="checkbox" id="symmetric" checked> Symmetric (mirror values automatically)</label>
+
+    <table id="matrixTable">
+      <thead><tr><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div id="controls">
+      <button onclick="addGroup()">Add Group</button>
+      <button onclick="removeGroup()">Remove Last Group</button>
+      <button onclick="loadExample()">Load Flavor Example</button>
+      <button onclick="generate()">Generate Chord Diagram</button>
+    </div>
+  </div>
+
+  <div id="chart"></div>
+  <div id="download"></div>
+
+  <script>
+    let groups = [];
+    let numGroups = 0;
+
+    function addGroup(name = `Group ${numGroups + 1}`) {
+      groups.push(name);
+      numGroups++;
+      rebuildTable();
+    }
+
+    function removeGroup() {
+      if (numGroups > 2) {  // keep at least 2 for a meaningful diagram
+        groups.pop();
+        numGroups--;
+        rebuildTable();
+      } else {
+        alert("Keep at least 2 groups for a chord diagram.");
+      }
+    }
+
+    function rebuildTable() {
+      const table = document.getElementById('matrixTable');
+      table.innerHTML = '<thead><tr><th></th></tr></thead><tbody></tbody>';
+      const theadRow = table.tHead.rows[0];
+
+      // Header row (column labels)
+      groups.forEach((name, i) => {
+        const th = document.createElement('th');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = name;
+        input.dataset.index = i;
+        input.onchange = function() {
+          groups[i] = this.value.trim() || `Group ${i+1}`;
+          updateRowLabels();
+        };
+        th.appendChild(input);
+        theadRow.appendChild(th);
+      });
+
+      // Body rows
+      const tbody = table.tBodies[0];
+      groups.forEach((name, row) => {
+        const tr = tbody.insertRow();
+        // Row label
+        const rowTh = tr.insertCell();
+        rowTh.style.background = '#f0f0f0';
+        // Cells
+        groups.forEach((_, col) => {
+          const td = tr.insertCell();
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.min = 0;
+          input.value = (row === col) ? 0 : '';
+          input.dataset.row = row;
+          input.dataset.col = col;
+          input.oninput = handleInput;
+          if (row === col) {
+            input.disabled = true;
+            input.style.backgroundColor = '#eee';
+          }
+          td.appendChild(input);
+        });
+      });
+      updateRowLabels();
+    }
+
+    function updateRowLabels() {
+      const tbody = document.getElementById('matrixTable').tBodies[0];
+      if (!tbody) return;
+      Array.from(tbody.rows).forEach((tr, i) => {
+        tr.cells[0].textContent = groups[i] || '';
+      });
+    }
+
+    function getInput(row, col) {
+      const tbody = document.getElementById('matrixTable').tBodies[0];
+      if (tbody && tbody.rows[row]) {
+        return tbody.rows[row].cells[col + 1].querySelector('input'); // +1 for row label
+      }
+      return null;
+    }
+
+    function handleInput(e) {
+      const input = e.target;
+      const row = parseInt(input.dataset.row);
+      const col = parseInt(input.dataset.col);
+      let value = parseFloat(input.value) || 0;
+      input.value = value;
+
+      if (document.getElementById('symmetric').checked && row !== col) {
+        const mirror = getInput(col, row);
+        if (mirror) mirror.value = value;
+      }
+    }
+
+    function getNames() {
+      return groups.map(g => g.trim() || `Group ${groups.indexOf(g)+1}`);
+    }
+
+    function getMatrix() {
+      const matrix = [];
+      for (let r = 0; r < numGroups; r++) {
+        const row = [];
+        for (let c = 0; c < numGroups; c++) {
+          const input = getInput(r, c);
+          let val = input ? (parseFloat(input.value) || 0) : 0;
+          if (r === c) val = 0;
+          row.push(val);
+        }
+        matrix.push(row);
+      }
+      return matrix;
+    }
+
+    function generate() {
+      if (numGroups < 2) {
+        alert("Add at least 2 groups to generate a diagram.");
+        return;
+      }
+      const names = getNames();
+      const matrix = getMatrix();
+      drawChord(names, matrix);
+
+      // Show download button
+      document.getElementById('download').innerHTML =
+        '<button onclick="downloadPNG()">Download as PNG</button>';
+    }
+
+    function drawChord(names, matrix) {
+      d3.select("#chart svg").remove();
+
+      const width = 960;
+      const height = 960;
+      const outerRadius = Math.min(width, height) * 0.5 - 60;
+      const innerRadius = outerRadius - 30;
+
+      const svg = d3.select("#chart")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g")
+        .attr("transform", `translate(${width / 2},${height / 2})`);
+
+      const chord = d3.chord()
+        .padAngle(0.05)
+        .sortSubgroups(d3.descending);
+
+      const chords = chord(matrix);
+
+      const arc = d3.arc()
+        .innerRadius(innerRadius)
+        .outerRadius(outerRadius);
+
+      const ribbon = d3.ribbon()
+        .radius(innerRadius);
+
+      const color = d3.scaleOrdinal()
+        .domain(d3.range(names.length))
+        .range(d3.schemeCategory10);
+
+      // Groups
+      const group = svg.append("g")
+        .selectAll("g")
+        .data(chords.groups)
+        .join("g");
+
+      group.append("path")
+        .style("fill", d => color(d.index))
+        .style("stroke", "black")
+        .attr("d", arc);
+
+      // Labels
+      group.append("text")
+        .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+        .attr("dy", ".35em")
+        .attr("transform", d => `
+          rotate(${d.angle * 180 / Math.PI - 90})
+          translate(${outerRadius + 10})
+          ${d.angle > Math.PI ? "rotate(180)" : ""}
+        `)
+        .style("text-anchor", d => d.angle > Math.PI ? "end" : null)
+        .text(d => names[d.index]);
+
+      // Chords
+      const ribbons = svg.append("g")
+        .attr("fill-opacity", 0.67)
+        .selectAll("path")
+        .data(chords)
+        .join("path")
+        .attr("d", ribbon)
+        .attr("fill", d => color(d.source.index))
+        .attr("stroke", "black");
+
+      // Tooltips
+      group.select("path").append("title")
+        .text(d => `${names[d.index]}\nTotal: ${d.value}`);
+
+      ribbons.append("title")
+        .text(d => `${names[d.source.index]} → ${names[d.target.index]}: ${d.source.value}\n${names[d.target.index]} → ${names[d.source.index]}: ${d.target.value}`);
+
+      // Hover fade
+      group.select("path")
+        .on("mouseover", fade(0.1))
+        .on("mouseout", fade(1));
+
+      function fade(opacity) {
+        return function(event, d) {
+          ribbons.transition().style("opacity", ch =>
+            (ch.source.index === d.index || ch.target.index === d.index) ? 1 : opacity);
+        };
+      }
+    }
+
+    function downloadPNG() {
+      const svg = document.querySelector("#chart svg");
+      if (!svg) return;
+
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svg);
+
+      if (!source.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)){
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+      if (!source.match(/^<svg[^>]+"http:\/\/www\.w3\.org\/1999\/xlink"/)){
+        source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+      }
+
+      source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+      const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 960;
+        canvas.height = 960;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const a = document.createElement('a');
+        a.download = "chord-diagram.png";
+        a.href = canvas.toDataURL("image/png");
+        a.click();
+      };
+      img.src = url;
+    }
+
+    function loadExample() {
+      groups = ["Sweet", "Salty", "Sour", "Bitter", "Umami"];
+      numGroups = groups.length;
+      rebuildTable();
+
+      const exampleMatrix = [
+        [0,5871,8916,2868,1951],
+        [5871,0,16145,8090,8045],
+        [8916,16145,0,990,940],
+        [2868,8090,990,0,6171],
+        [1951,8045,940,6171,0]
+      ];
+
+      setTimeout(() => {
+        exampleMatrix.forEach((row, r) => {
+          row.forEach((val, c) => {
+            const input = getInput(r, c);
+            if (input && r !== c) input.value = val;
+          });
+        });
+      }, 0);
+    }
+
+    // Start with the classic flavor example
+    window.onload = () => {
+      loadExample();
+      generate();
+    };
+  </script>
+</body>
+</html>
