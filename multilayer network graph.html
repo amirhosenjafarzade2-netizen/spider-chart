@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Multilayer Network Graph</title>
+    <style>
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            height: 100%; 
+            font-family: Arial, sans-serif; 
+            background: #0a0a0a; 
+            color: #fff; 
+            overflow: hidden;
+        }
+        #app { display: flex; height: 100%; }
+        #sidebar {
+            width: 340px;
+            background: #1a1a1a;
+            padding: 20px;
+            border-right: 2px solid #333;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+        #container { flex: 1; position: relative; }
+        canvas { display: block; }
+        h2 { margin-top: 0; color: #4a9eff; font-size: 20px; }
+        h3 { color: #ccc; font-size: 16px; margin-top: 20px; margin-bottom: 10px; }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 6px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        button:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:active { 
+            transform: translateY(0);
+            background: linear-gradient(135deg, #5568d3 0%, #653a8b 100%);
+        }
+        .layer-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 8px 0;
+            background: #252525;
+            border-left: 4px solid;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .layer-item:hover { background: #2a2a2a; }
+        .color-box {
+            width: 32px;
+            height: 32px;
+            margin-right: 12px;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .layer-info {
+            flex: 1;
+            font-size: 12px;
+        }
+        .layer-name {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .layer-details {
+            color: #888;
+            font-size: 11px;
+        }
+        #instructions {
+            font-size: 13px;
+            margin: 15px 0;
+            padding: 12px;
+            background: #252525;
+            border-radius: 6px;
+            line-height: 1.6;
+            border-left: 3px solid #4a9eff;
+        }
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(74, 158, 255, 0.95);
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .empty-state {
+            color: #666;
+            font-size: 13px;
+            padding: 15px;
+            text-align: center;
+            font-style: italic;
+        }
+        .input-group {
+            margin: 15px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 13px;
+            color: #aaa;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px;
+            background: #252525;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+        .input-row .input-group {
+            flex: 1;
+            margin: 15px 0;
+        }
+        #modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        #modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #333;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-buttons button {
+            flex: 1;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #555 0%, #333 100%);
+        }
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #666 0%, #444 100%);
+        }
+        .color-picker-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .color-picker-wrapper input[type="color"] {
+            width: 60px;
+            height: 40px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .color-preview {
+            flex: 1;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="sidebar">
+            <h2>🕸️ Multilayer Network</h2>
+            <p style="font-size: 13px; line-height: 1.5; color: #aaa;">Build 3D multilayer networks with custom coordinates, axis ranges, and colors.</p>
+
+            <div id="instructions">
+                <strong>How to use:</strong><br>
+                1. Add layers with axis ranges & colors<br>
+                2. Add nodes with exact coordinates<br>
+                3. Click nodes to create edges<br>
+                4. Rotate, zoom, and explore!
+            </div>
+
+            <h3>Layers</h3>
+            <div id="layers-list"></div>
+            <button id="add-layer-btn">➕ Add Layer</button>
+
+            <h3>Nodes & Edges</h3>
+            <button id="add-node-btn">🔵 Add Node</button>
+            <button id="clear-selection-btn">❌ Clear Selection</button>
+            
+            <h3>Controls</h3>
+            <button id="zoom-fit-btn">🔍 Fit View</button>
+            <button id="save-image-btn">📸 Save Picture</button>
+            <button id="example-btn">📊 Load Example</button>
+            <button id="clear-all-btn">🗑️ Clear All</button>
+        </div>
+        <div id="container">
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <div id="modal">
+        <div class="modal-content">
+            <h3 id="modal-title">Input</h3>
+            <div id="modal-body"></div>
+            <div class="modal-buttons">
+                <button id="modal-cancel" class="btn-secondary">Cancel</button>
+                <button id="modal-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let layers = [];
+        let nodes = [];
+        let links = [];
+        let nodeCounter = 0;
+        let fromNode = null;
+
+        const container = document.getElementById('container');
+        const layersListEl = document.getElementById('layers-list');
+        const statusEl = document.getElementById('status');
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0a);
+
+        const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 5000);
+        camera.position.set(800, 800, 800);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        dirLight.position.set(500, 500, 500);
+        scene.add(dirLight);
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const nodeMeshes = [];
+        const linkMeshes = [];
+        const planeMeshes = [];
+
+        function showStatus(msg, duration = 2000) {
+            statusEl.textContent = msg;
+            statusEl.style.display = 'block';
+            setTimeout(() => statusEl.style.display = 'none', duration);
+        }
+
+        function showModal(title, bodyHTML) {
+            return new Promise((resolve) => {
+                modalTitle.textContent = title;
+                modalBody.innerHTML = bodyHTML;
+                modal.classList.add('active');
+
+                const okBtn = document.getElementById('modal-ok');
+                const cancelBtn = document.getElementById('modal-cancel');
+
+                function cleanup() {
+                    modal.classList.remove('active');
+                    okBtn.replaceWith(okBtn.cloneNode(true));
+                    cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+                }
+
+                document.getElementById('modal-ok').onclick = () => {
+                    const inputs = modalBody.querySelectorAll('input, select');
+                    const values = {};
+                    inputs.forEach(input => {
+                        values[input.id] = input.value;
+                    });
+                    cleanup();
+                    resolve(values);
+                };
+
+                document.getElementById('modal-cancel').onclick = () => {
+                    cleanup();
+                    resolve(null);
+                };
+            });
+        }
+
+        function updateLayersList() {
+            layersListEl.innerHTML = '';
+            if (layers.length === 0) {
+                layersListEl.innerHTML = '<div class="empty-state">No layers yet</div>';
+                return;
+            }
+            layers.forEach(layer => {
+                const item = document.createElement('div');
+                item.className = 'layer-item';
+                item.style.borderLeftColor = layer.color;
+
+                const colorBox = document.createElement('div');
+                colorBox.className = 'color-box';
+                colorBox.style.backgroundColor = layer.color;
+
+                const info = document.createElement('div');
+                info.className = 'layer-info';
+                
+                const name = document.createElement('div');
+                name.className = 'layer-name';
+                name.textContent = layer.name;
+                
+                const details = document.createElement('div');
+                details.className = 'layer-details';
+                details.textContent = `X: [${layer.xMin}, ${layer.xMax}], Y: [${layer.yMin}, ${layer.yMax}], Z: ${layer.z}`;
+
+                info.appendChild(name);
+                info.appendChild(details);
+                item.appendChild(colorBox);
+                item.appendChild(info);
+                layersListEl.appendChild(item);
+            });
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16) / 255,
+                g: parseInt(result[2], 16) / 255,
+                b: parseInt(result[3], 16) / 255
+            } : { r: 1, g: 1, b: 1 };
+        }
+
+        function addPlaneAndGrid(layer) {
+            const xSize = layer.xMax - layer.xMin;
+            const ySize = layer.yMax - layer.yMin;
+            const xCenter = (layer.xMax + layer.xMin) / 2;
+            const yCenter = (layer.yMax + layer.yMin) / 2;
+            const rgb = hexToRgb(layer.color);
+
+            const planeGeo = new THREE.PlaneGeometry(xSize, ySize);
+            const planeMat = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(rgb.r, rgb.g, rgb.b),
+                opacity: 0.1,
+                transparent: true,
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeo, planeMat);
+            plane.position.set(xCenter, layer.z, yCenter);
+            plane.rotation.x = Math.PI / 2;
+            scene.add(plane);
+            planeMeshes.push(plane);
+
+            const gridSize = Math.max(xSize, ySize);
+            const divisions = 20;
+            const grid = new THREE.GridHelper(gridSize, divisions, new THREE.Color(rgb.r, rgb.g, rgb.b), 0x222222);
+            grid.position.set(xCenter, layer.z, yCenter);
+            scene.add(grid);
+            planeMeshes.push(grid);
+        }
+
+        function createNode(node) {
+            const rgb = hexToRgb(node.layer.color);
+            
+            const geometry = new THREE.SphereGeometry(8, 16, 16);
+            const material = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(rgb.r, rgb.g, rgb.b),
+                emissive: new THREE.Color(rgb.r * 0.2, rgb.g * 0.2, rgb.b * 0.2)
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(node.x, node.z, node.y);
+            mesh.userData = { node };
+            scene.add(mesh);
+            nodeMeshes.push(mesh);
+        }
+
+        function createLink(link) {
+            const source = nodes.find(n => n.id === link.source);
+            const target = nodes.find(n => n.id === link.target);
+            if (!source || !target) return;
+
+            const points = [
+                new THREE.Vector3(source.x, source.z, source.y),
+                new THREE.Vector3(target.x, target.z, target.y)
+            ];
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            let color, opacity;
+            if (link.inter) {
+                color = new THREE.Color(0.4, 0.4, 0.4);
+                opacity = 0.3;
+            } else {
+                const rgb = hexToRgb(link.layerColor);
+                color = new THREE.Color(rgb.r, rgb.g, rgb.b);
+                opacity = 0.8;
+            }
+            
+            const material = new THREE.LineBasicMaterial({ color, opacity, transparent: true });
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            linkMeshes.push(line);
+        }
+
+        function updateScene() {
+            nodeMeshes.forEach(m => scene.remove(m));
+            linkMeshes.forEach(m => scene.remove(m));
+            nodeMeshes.length = 0;
+            linkMeshes.length = 0;
+
+            links.forEach(createLink);
+            nodes.forEach(createNode);
+        }
+
+        function clearAll() {
+            nodes = [];
+            links = [];
+            layers = [];
+            nodeCounter = 0;
+            fromNode = null;
+            
+            [...nodeMeshes, ...linkMeshes, ...planeMeshes].forEach(m => scene.remove(m));
+            nodeMeshes.length = 0;
+            linkMeshes.length = 0;
+            planeMeshes.length = 0;
+            
+            updateLayersList();
+        }
+
+        renderer.domElement.addEventListener('click', (e) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeMeshes);
+
+            if (intersects.length > 0) {
+                const node = intersects[0].object.userData.node;
+                
+                if (!fromNode) {
+                    fromNode = node;
+                    showStatus(`Selected "${node.label}" in ${node.layer.name}`, 5000);
+                } else if (fromNode === node) {
+                    fromNode = null;
+                    showStatus('Selection cancelled');
+                } else {
+                    const exists = links.some(l =>
+                        (l.source === fromNode.id && l.target === node.id) ||
+                        (l.source === node.id && l.target === fromNode.id)
+                    );
+                    if (exists) {
+                        showStatus('Edge already exists!');
+                    } else {
+                        const inter = fromNode.layer.id !== node.layer.id;
+                        links.push({
+                            source: fromNode.id,
+                            target: node.id,
+                            inter,
+                            layerColor: inter ? null : fromNode.layer.color
+                        });
+                        updateScene();
+                        showStatus(`✓ Edge: ${fromNode.label} ↔ ${node.label}`);
+                    }
+                    fromNode = null;
+                }
+            }
+        });
+
+        document.getElementById('add-layer-btn').addEventListener('click', async () => {
+            const result = await showModal('Add New Layer', `
+                <div class="input-group">
+                    <label>Layer Name:</label>
+                    <input type="text" id="layer-name" value="Layer ${layers.length + 1}" />
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Min:</label>
+                        <input type="number" id="x-min" value="-400" step="10" />
+                    </div>
+                    <div class="input-group">
+                        <label>X Max:</label>
+                        <input type="number" id="x-max" value="400" step="10" />
+                    </div>
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Y Min:</label>
+                        <input type="number" id="y-min" value="-400" step="10" />
+                    </div>
+                    <div class="input-group">
+                        <label>Y Max:</label>
+                        <input type="number" id="y-max" value="400" step="10" />
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Layer Color:</label>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="layer-color" value="#4a9eff" />
+                        <div class="color-preview" id="color-preview" style="background: #4a9eff;">Selected Color</div>
+                    </div>
+                </div>
+            `);
+
+            if (result) {
+                const colorInput = document.getElementById('layer-color');
+                if (colorInput) {
+                    colorInput.addEventListener('input', (e) => {
+                        document.getElementById('color-preview').style.background = e.target.value;
+                    });
+                }
+            }
+            
+            if (!result) return;
+            
+            const name = result['layer-name'].trim();
+            const xMin = parseFloat(result['x-min']);
+            const xMax = parseFloat(result['x-max']);
+            const yMin = parseFloat(result['y-min']);
+            const yMax = parseFloat(result['y-max']);
+            const color = result['layer-color'];
+
+            if (!name) {
+                showStatus('Layer name cannot be empty');
+                return;
+            }
+            if (layers.some(l => l.name === name)) {
+                showStatus('Layer name must be unique!');
+                return;
+            }
+            if (xMin >= xMax || yMin >= yMax) {
+                showStatus('Invalid axis ranges!');
+                return;
+            }
+
+            const spacing = 250;
+            const z = layers.length === 0 ? 0 : layers[layers.length - 1].z - spacing;
+
+            const layer = { id: layers.length, name, color, z, xMin, xMax, yMin, yMax };
+            layers.push(layer);
+            addPlaneAndGrid(layer);
+            updateLayersList();
+            showStatus(`Layer "${name}" added!`);
+        });
+
+        document.getElementById('add-node-btn').addEventListener('click', async () => {
+            if (layers.length === 0) {
+                showStatus('Please add at least one layer first!');
+                return;
+            }
+            
+            const layerOptions = layers.map((l, i) => 
+                `<option value="${i}">${l.name} (X: [${l.xMin}, ${l.xMax}], Y: [${l.yMin}, ${l.yMax}])</option>`
+            ).join('');
+            
+            const result = await showModal('Add New Node', `
+                <div class="input-group">
+                    <label>Node Label:</label>
+                    <input type="text" id="node-label" value="Node${nodeCounter + 1}" />
+                </div>
+                <div class="input-group">
+                    <label>Layer:</label>
+                    <select id="node-layer" style="width: 100%; padding: 8px; background: #252525; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 13px;">
+                        ${layerOptions}
+                    </select>
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Coordinate:</label>
+                        <input type="number" id="node-x" value="0" step="1" />
+                    </div>
+                    <div class="input-group">
+                        <label>Y Coordinate:</label>
+                        <input type="number" id="node-y" value="0" step="1" />
+                    </div>
+                </div>
+            `);
+            
+            if (!result) return;
+            
+            const label = result['node-label'].trim();
+            const idx = parseInt(result['node-layer']);
+            const x = parseFloat(result['node-x']);
+            const y = parseFloat(result['node-y']);
+            
+            if (!label) {
+                showStatus('Node label cannot be empty');
+                return;
+            }
+            
+            const layer = layers[idx];
+            
+            if (x < layer.xMin || x > layer.xMax || y < layer.yMin || y > layer.yMax) {
+                showStatus(`Coordinates out of range! X: [${layer.xMin}, ${layer.xMax}], Y: [${layer.yMin}, ${layer.yMax}]`);
+                return;
+            }
+            
+            nodeCounter++;
+            nodes.push({
+                id: `n${nodeCounter}`,
+                label,
+                layer,
+                x,
+                y,
+                z: layer.z
+            });
+            
+            updateScene();
+            showStatus(`Node "${label}" added at (${x}, ${y})!`);
+        });
+
+        document.getElementById('clear-selection-btn').addEventListener('click', () => {
+            fromNode = null;
+            showStatus('Selection cleared');
+        });
+
+        document.getElementById('zoom-fit-btn').addEventListener('click', () => {
+            camera.position.set(800, 800, 800);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            showStatus('View reset');
+        });
+
+        document.getElementById('save-image-btn').addEventListener('click', () => {
+            try {
+                renderer.render(scene, camera);
+                renderer.domElement.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `multilayer-network-${Date.now()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showStatus('Image saved!');
+                });
+            } catch (e) {
+                showStatus('Error saving image');
+            }
+        });
+
+        document.getElementById('clear-all-btn').addEventListener('click', async () => {
+            if (nodes.length === 0 && layers.length === 0) {
+                showStatus('Nothing to clear');
+                return;
+            }
+            
+            const result = await showModal('Clear All', `
+                <p style="color: #aaa; margin: 0;">Are you sure you want to clear everything? This cannot be undone.</p>
+            `);
+            
+            if (result) {
+                clearAll();
+                showStatus('All cleared!');
+            }
+        });
+
+        document.getElementById('example-btn').addEventListener('click', async () => {
+            if (nodes.length > 0 || layers.length > 0) {
+                const result = await showModal('Load Example', `
+                    <p style="color: #aaa; margin: 0;">This will replace the current graph. Continue?</p>
+                `);
+                if (!result) return;
+            }
+            
+            clearAll();
+
+            const exampleLayers = [
+                { name: 'Social', color: '#00ff88', xMin: -300, xMax: 300, yMin: -300, yMax: 300 },
+                { name: 'Work', color: '#ffaa00', xMin: -250, xMax: 250, yMin: -250, yMax: 250 },
+                { name: 'Family', color: '#0088ff', xMin: -200, xMax: 200, yMin: -200, yMax: 200 },
+                { name: 'Hobby', color: '#ff0088', xMin: -300, xMax: 300, yMin: -300, yMax: 300 }
+            ];
+
+            let z = 300;
+            exampleLayers.forEach(l => {
+                const layer = { id: layers.length, name: l.name, color: l.color, z, xMin: l.xMin, xMax: l.xMax, yMin: l.yMin, yMax: l.yMax };
+                layers.push(layer);
+                addPlaneAndGrid(layer);
+                z -= 250;
+            });
+
+            const people = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'];
+            people.forEach(label => {
+                layers.forEach(layer => {
+                    if (Math.random() > 0.2) {
+                        nodeCounter++;
+                        const angle = (nodeCounter / 15) * Math.PI * 2;
+                        const radius = (layer.xMax - layer.xMin) * 0.3 + Math.random() * (layer.xMax - layer.xMin) * 0.2;
+                        nodes.push({
+                            id: `n${nodeCounter}`,
+                            label,
+                            layer,
+                            x: Math.cos(angle) * radius,
+                            y: Math.sin(angle) * radius,
+                            z: layer.z
+                        });
+                    }
+                });
+            });
+
+            layers.forEach(layer => {
+                const layerNodes = nodes.filter(n => n.layer.id === layer.id);
+                for (let i = 0; i < layerNodes.length; i++) {
+                    for (let j = i + 1; j < layerNodes.length; j++) {
+                        if (Math.random() < 0.15) {
+                            links.push({
+                                source: layerNodes[i].id,
+                                target: layerNodes[j].id,
+                                inter: false,
+                                layerColor: layer.color
+                            });
+                        }
+                    }
+                }
+            });
+
+            const byLabel = {};
+            nodes.forEach(n => {
+                if (!byLabel[n.label]) byLabel[n.label] = [];
+                byLabel[n.label].push(n);
+            });
+            
+            Object.values(byLabel).forEach(group => {
+                for (let i = 0; i < group.length; i++) {
+                    for (let j = i + 1; j < group.length; j++) {
+                        if (Math.random() < 0.6) {
+                            links.push({
+                                source: group[i].id,
+                                target: group[j].id,
+                                inter: true
+                            });
+                        }
+                    }
+                }
+            });
+
+            updateScene();
+            updateLayersList();
+            showStatus('Example loaded!', 3000);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        updateLayersList();
+        animate();
+        showStatus('Welcome! Add a layer to start', 3000);
+    </script>
+</body>
+</html>
