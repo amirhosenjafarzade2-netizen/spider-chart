@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Multilayer Network Graph (10/10 Edition)</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            overflow: hidden;
+        }
+        #app { display: flex; height: 100%; }
+        #sidebar {
+            width: 340px;
+            background: #1a1a1a;
+            padding: 20px;
+            border-right: 2px solid #333;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+        #container { flex: 1; position: relative; }
+        canvas { display: block; }
+        h2 { margin-top: 0; color: #4a9eff; font-size: 20px; }
+        h3 { color: #ccc; font-size: 16px; margin-top: 20px; margin-bottom: 10px; }
+        h4 { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 6px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .layer-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 8px 0;
+            background: #252525;
+            border-left: 4px solid;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .layer-item:hover { background: #2a2a2a; }
+        .color-box {
+            width: 32px;
+            height: 32px;
+            margin-right: 12px;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .layer-info {
+            flex: 1;
+            font-size: 12px;
+        }
+        .layer-name {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .layer-details {
+            color: #888;
+            font-size: 11px;
+        }
+        #instructions {
+            font-size: 13px;
+            margin: 15px 0;
+            padding: 12px;
+            background: #252525;
+            border-radius: 6px;
+            line-height: 1.6;
+            border-left: 3px solid #4a9eff;
+        }
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(74, 158, 255, 0.95);
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .empty-state {
+            color: #666;
+            font-size: 13px;
+            padding: 15px;
+            text-align: center;
+            font-style: italic;
+        }
+        .input-group {
+            margin: 15px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 13px;
+            color: #aaa;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px;
+            background: #252525;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+        .input-row .input-group {
+            flex: 1;
+            margin: 15px 0;
+        }
+        #modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        #modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #333;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-buttons button {
+            flex: 1;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #555 0%, #333 100%);
+        }
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #666 0%, #444 100%);
+        }
+        .color-picker-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .color-picker-wrapper input[type="color"] {
+            width: 60px;
+            height: 40px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .color-preview {
+            flex: 1;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+            color: #fff;
+        }
+        .label {
+            color: #fff;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 4px;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .checkbox-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #252525;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+        .checkbox-item {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+        }
+        .checkbox-item label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .checkbox-item input {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="sidebar">
+            <h2>🕸️ Multilayer Network (10/10)</h2>
+            <p style="font-size: 13px; line-height: 1.5; color: #aaa;">Build, edit, save, and explore 3D multilayer networks.</p>
+            <div id="instructions">
+                <strong>How to use:</strong><br>
+                1. Add layers (custom ranges, colors, spacing)<br>
+                2. Add nodes → optionally connect with custom style<br>
+                3. Click nodes to create additional default edges<br>
+                4. Toggle Delete Mode to remove nodes<br>
+                5. Adjust label display and layer spacing<br>
+                6. Export/import full graphs
+            </div>
+            <h3>Layers</h3>
+            <div id="layers-list"></div>
+            <button id="add-layer-btn">➕ Add Layer</button>
+            <div class="input-group">
+                <label>Layer Spacing:</label>
+                <input type="number" id="layer-spacing-input" value="300" min="100" max="1000" step="50">
+            </div>
+            <button id="apply-spacing">Apply Spacing</button>
+            <h3>Nodes & Edges</h3>
+            <button id="add-node-btn">🔵 Add Node</button>
+            <button id="clear-selection-btn">❌ Clear Selection</button>
+            <h3>Display Options</h3>
+            <div style="margin:10px 0;">
+                <label style="display:flex;align-items:center;cursor:pointer;">
+                    <input type="checkbox" id="show-labels-checkbox" checked>
+                    <span style="margin-left:8px;">Show Node Labels</span>
+                </label>
+            </div>
+            <div class="input-group">
+                <label>Label Font Size (px):</label>
+                <input type="number" id="label-font-size" value="14" min="8" max="32" step="1">
+            </div>
+            <h3>Controls</h3>
+            <button id="zoom-fit-btn">🔍 Fit View</button>
+            <button id="save-image-btn">📸 Save Picture</button>
+            <button id="example-btn">📊 Load Example</button>
+            <button id="clear-all-btn">🗑️ Clear All</button>
+            <h3>Data</h3>
+            <button id="export-btn">📄 Export JSON</button>
+            <button id="import-btn">📥 Import JSON</button>
+            <h3>Edit</h3>
+            <button id="delete-mode-btn">🗑️ Delete Mode: Off</button>
+        </div>
+        <div id="container">
+            <div id="status"></div>
+        </div>
+    </div>
+    <div id="modal">
+        <div class="modal-content">
+            <h3 id="modal-title">Input</h3>
+            <div id="modal-body"></div>
+            <div class="modal-buttons">
+                <button id="modal-cancel" class="btn-secondary">Cancel</button>
+                <button id="modal-ok">OK</button>
+            </div>
+        </div>
+    </div>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+        import { Line2 } from 'three/addons/lines/Line2.js';
+        import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+        let layers = [];
+        let nodes = [];
+        let links = [];
+        let nodeCounter = 0;
+        let fromNode = null;
+        let deleteMode = false;
+        let hoveredNode = null;
+        let showLabels = true;
+        let labelFontSize = 14;
+        let layerSpacing = 300;
+
+        const container = document.getElementById('container');
+        const layersListEl = document.getElementById('layers-list');
+        const statusEl = document.getElementById('status');
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0a);
+
+        const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 5000);
+        camera.position.set(800, 800, 800);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(container.clientWidth, container.clientHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        container.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        dirLight.position.set(500, 500, 500);
+        scene.add(dirLight);
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        const nodeMeshes = [];
+        const linkMeshes = [];
+        const lineMaterials = [];
+        const planeMeshes = [];
+
+        function showStatus(msg, duration = 2000) {
+            statusEl.textContent = msg;
+            statusEl.style.display = 'block';
+            setTimeout(() => statusEl.style.display = 'none', duration);
+        }
+
+        function showModal(title, bodyHTML, setup = null, getValues = null) {
+            return new Promise((resolve) => {
+                modalTitle.textContent = title;
+                modalBody.innerHTML = bodyHTML;
+                if (setup) setup(modalBody);
+                modal.classList.add('active');
+
+                const cleanup = () => {
+                    modal.classList.remove('active');
+                    document.getElementById('modal-ok').replaceWith(document.getElementById('modal-ok').cloneNode(true));
+                    document.getElementById('modal-cancel').replaceWith(document.getElementById('modal-cancel').cloneNode(true));
+                };
+
+                document.getElementById('modal-ok').onclick = () => {
+                    let values = {};
+                    if (getValues) {
+                        values = getValues(modalBody);
+                    } else {
+                        const inputs = modalBody.querySelectorAll('input, select');
+                        inputs.forEach(input => {
+                            if (input.type === 'checkbox') {
+                                values[input.id] = input.checked;
+                            } else {
+                                values[input.id] = input.value;
+                            }
+                        });
+                    }
+                    cleanup();
+                    resolve(values);
+                };
+
+                document.getElementById('modal-cancel').onclick = () => {
+                    cleanup();
+                    resolve(null);
+                };
+            });
+        }
+
+        function updateLayersList() {
+            layersListEl.innerHTML = '';
+            if (layers.length === 0) {
+                layersListEl.innerHTML = '<div class="empty-state">No layers yet</div>';
+                return;
+            }
+            layers.forEach(layer => {
+                const item = document.createElement('div');
+                item.className = 'layer-item';
+                item.style.borderLeftColor = layer.color;
+                const colorBox = document.createElement('div');
+                colorBox.className = 'color-box';
+                colorBox.style.backgroundColor = layer.color;
+                const info = document.createElement('div');
+                info.className = 'layer-info';
+                const name = document.createElement('div');
+                name.className = 'layer-name';
+                name.textContent = layer.name;
+                const details = document.createElement('div');
+                details.className = 'layer-details';
+                details.textContent = `X: [${layer.xMin}, ${layer.xMax}], Y: [${layer.yMin}, ${layer.yMax}], Z: ${layer.z.toFixed(0)}`;
+                info.appendChild(name);
+                info.appendChild(details);
+                item.appendChild(colorBox);
+                item.appendChild(info);
+                layersListEl.appendChild(item);
+            });
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16) / 255,
+                g: parseInt(result[2], 16) / 255,
+                b: parseInt(result[3], 16) / 255
+            } : { r: 1, g: 1, b: 1 };
+        }
+
+        function addPlaneAndGrid(layer) {
+            const xSize = layer.xMax - layer.xMin;
+            const ySize = layer.yMax - layer.yMin;
+            const xCenter = (layer.xMax + layer.xMin) / 2;
+            const yCenter = (layer.yMax + layer.yMin) / 2;
+            const rgb = hexToRgb(layer.color);
+            const planeGeo = new THREE.PlaneGeometry(xSize, ySize);
+            const planeMat = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(rgb.r, rgb.g, rgb.b),
+                opacity: 0.1,
+                transparent: true,
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeo, planeMat);
+            plane.position.set(xCenter, layer.z, yCenter);
+            plane.rotation.x = Math.PI / 2;
+            scene.add(plane);
+            layer.plane = plane;
+
+            const gridSize = Math.max(xSize, ySize);
+            const divisions = 20;
+            const grid = new THREE.GridHelper(gridSize, divisions, new THREE.Color(rgb.r, rgb.g, rgb.b), 0x222222);
+            grid.position.set(xCenter, layer.z, yCenter);
+            scene.add(grid);
+            layer.grid = grid;
+
+            planeMeshes.push(plane, grid);
+        }
+
+        function createNode(node) {
+            const rgb = hexToRgb(node.layer.color);
+            const geometry = new THREE.SphereGeometry(8, 16, 16);
+            const material = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(rgb.r, rgb.g, rgb.b),
+                emissive: new THREE.Color(rgb.r * 0.2, rgb.g * 0.2, rgb.b * 0.2)
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(node.x, node.z, node.y);
+            mesh.userData = { node };
+
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'label';
+            labelDiv.textContent = node.label;
+            labelDiv.style.fontSize = `${labelFontSize}px`;
+            const label = new CSS2DObject(labelDiv);
+            label.position.set(0, 15, 0);
+            label.visible = showLabels;
+            mesh.add(label);
+
+            scene.add(mesh);
+            nodeMeshes.push(mesh);
+        }
+
+        function createLink(link) {
+            const source = nodes.find(n => n.id === link.source);
+            const target = nodes.find(n => n.id === link.target);
+            if (!source || !target) return;
+
+            const positions = [
+                source.x, source.z, source.y,
+                target.x, target.z, target.y
+            ];
+
+            const geometry = new LineGeometry();
+            geometry.setPositions(positions);
+
+            const inter = link.inter;
+            const defaultColor = inter ? 0x888888 : parseInt((link.layerColor || source.layer.color).slice(1), 16);
+            const color = link.customColor ? parseInt(link.customColor.slice(1), 16) : defaultColor;
+            const dashed = link.dashed !== undefined ? link.dashed : inter;
+            const thickness = link.thickness || 4;
+
+            const material = new LineMaterial({
+                color: color,
+                linewidth: thickness,
+                dashed: dashed,
+                dashScale: 1,
+                dashSize: 20,
+                gapSize: 10,
+                transparent: false,
+                opacity: 1,
+                resolution: new THREE.Vector2(container.clientWidth, container.clientHeight)
+            });
+
+            lineMaterials.push(material);
+
+            const line = new Line2(geometry, material);
+            if (dashed) line.computeLineDistances();
+
+            scene.add(line);
+            linkMeshes.push(line);
+        }
+
+        function updateScene() {
+            // Clean up old links
+            linkMeshes.forEach(l => {
+                scene.remove(l);
+                l.geometry.dispose();
+                l.material.dispose();
+            });
+            linkMeshes.length = 0;
+            lineMaterials.length = 0;
+
+            // Clean up old nodes
+            nodeMeshes.forEach(m => scene.remove(m));
+            nodeMeshes.length = 0;
+
+            links.forEach(createLink);
+            nodes.forEach(createNode);
+        }
+
+        function updateLabelDisplay() {
+            nodeMeshes.forEach(mesh => {
+                const labelObj = mesh.children.find(child => child instanceof CSS2DObject);
+                if (labelObj) {
+                    labelObj.visible = showLabels;
+                    labelObj.element.style.fontSize = `${labelFontSize}px`;
+                }
+            });
+        }
+
+        function clearAll() {
+            nodes = [];
+            links = [];
+            layers = [];
+            nodeCounter = 0;
+            fromNode = null;
+            deleteMode = false;
+            document.getElementById('delete-mode-btn').textContent = '🗑️ Delete Mode: Off';
+            document.getElementById('delete-mode-btn').style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+
+            [...nodeMeshes, ...linkMeshes, ...planeMeshes].forEach(m => scene.remove(m));
+            nodeMeshes.length = 0;
+            linkMeshes.length = 0;
+            lineMaterials.length = 0;
+            planeMeshes.length = 0;
+
+            updateLayersList();
+        }
+
+        function onPointerMove(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeMeshes);
+
+            if (intersects.length > 0) {
+                const mesh = intersects[0].object;
+                if (hoveredNode !== mesh) {
+                    if (hoveredNode) hoveredNode.scale.set(1, 1, 1);
+                    mesh.scale.set(1.4, 1.4, 1.4);
+                    hoveredNode = mesh;
+                }
+                container.style.cursor = 'pointer';
+            } else {
+                if (hoveredNode) {
+                    hoveredNode.scale.set(1, 1, 1);
+                    hoveredNode = null;
+                }
+                container.style.cursor = 'default';
+            }
+        }
+
+        renderer.domElement.addEventListener('pointermove', onPointerMove);
+
+        renderer.domElement.addEventListener('click', (e) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeMeshes);
+
+            if (intersects.length > 0) {
+                const mesh = intersects[0].object;
+                const node = mesh.userData.node;
+
+                if (deleteMode) {
+                    nodes = nodes.filter(n => n.id !== node.id);
+                    links = links.filter(l => l.source !== node.id && l.target !== node.id);
+                    updateScene();
+                    showStatus(`Deleted "${node.label}"`);
+                    fromNode = null;
+                } else {
+                    if (!fromNode) {
+                        fromNode = node;
+                        showStatus(`Selected "${node.label}" – click another node to connect`, 4000);
+                    } else if (fromNode === node) {
+                        fromNode = null;
+                        showStatus('Selection cancelled');
+                    } else {
+                        const exists = links.some(l => 
+                            (l.source === fromNode.id && l.target === node.id) ||
+                            (l.source === node.id && l.target === fromNode.id)
+                        );
+                        if (exists) {
+                            showStatus('Edge already exists');
+                        } else {
+                            const inter = fromNode.layer.id !== node.layer.id;
+                            links.push({
+                                source: fromNode.id,
+                                target: node.id,
+                                inter,
+                                layerColor: inter ? null : fromNode.layer.color
+                            });
+                            updateScene();
+                            showStatus(`Edge added`);
+                        }
+                        fromNode = null;
+                    }
+                }
+            } else {
+                if (fromNode && !deleteMode) {
+                    fromNode = null;
+                    showStatus('Selection cleared');
+                }
+            }
+        });
+
+        // Add Layer (unchanged except spacing)
+        document.getElementById('add-layer-btn').addEventListener('click', async () => {
+            const bodyHTML = `
+                <div class="input-group">
+                    <label>Layer Name:</label>
+                    <input type="text" id="layer-name" value="Layer ${layers.length + 1}" />
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Min:</label>
+                        <input type="number" id="x-min" value="-400" step="10" />
+                    </div>
+                    <div class="input-group">
+                        <label>X Max:</label>
+                        <input type="number" id="x-max" value="400" step="10" />
+                    </div>
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Y Min:</label>
+                        <input type="number" id="y-min" value="-400" step="10" />
+                    </div>
+                    <div class="input-group">
+                        <label>Y Max:</label>
+                        <input type="number" id="y-max" value="400" step="10" />
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Layer Color:</label>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="layer-color" value="#4a9eff" />
+                        <div class="color-preview" id="color-preview" style="background: #4a9eff;">#4a9eff</div>
+                    </div>
+                </div>
+            `;
+
+            const setup = (body) => {
+                const colorInput = body.querySelector('#layer-color');
+                const preview = body.querySelector('#color-preview');
+                preview.style.background = colorInput.value;
+                preview.textContent = colorInput.value.toUpperCase();
+                colorInput.addEventListener('input', e => {
+                    preview.style.background = e.target.value;
+                    preview.textContent = e.target.value.toUpperCase();
+                });
+            };
+
+            const result = await showModal('Add New Layer', bodyHTML, setup);
+            if (!result) return;
+
+            const name = result['layer-name'].trim();
+            const xMin = parseFloat(result['x-min']);
+            const xMax = parseFloat(result['x-max']);
+            const yMin = parseFloat(result['y-min']);
+            const yMax = parseFloat(result['y-max']);
+            const color = result['layer-color'];
+
+            if (!name || layers.some(l => l.name === name)) {
+                showStatus('Invalid or duplicate name');
+                return;
+            }
+            if (xMin >= xMax || yMin >= yMax) {
+                showStatus('Invalid ranges');
+                return;
+            }
+
+            const z = layers.length === 0 ? 0 : layers[layers.length - 1].z - layerSpacing;
+            const layer = { id: layers.length, name, color, z, xMin, xMax, yMin, yMax };
+            layers.push(layer);
+            addPlaneAndGrid(layer);
+            updateLayersList();
+            showStatus(`Layer "${name}" added`);
+        });
+
+        // Apply Layer Spacing
+        document.getElementById('apply-spacing').addEventListener('click', () => {
+            const newSpacing = parseInt(document.getElementById('layer-spacing-input').value) || 300;
+            if (newSpacing === layerSpacing) return;
+            layerSpacing = newSpacing;
+            if (layers.length === 0) return;
+
+            let currentZ = 0;
+            layers.forEach((layer, i) => {
+                layer.z = currentZ - i * layerSpacing;
+                const xCenter = (layer.xMin + layer.xMax) / 2;
+                const yCenter = (layer.yMin + layer.yMax) / 2;
+                if (layer.plane) layer.plane.position.set(xCenter, layer.z, yCenter);
+                if (layer.grid) layer.grid.position.set(xCenter, layer.z, yCenter);
+            });
+
+            nodes.forEach(n => n.z = n.layer.z);
+            updateScene();
+            updateLayersList();
+            showStatus('Layer spacing updated');
+        });
+
+        // Add Node with checkbox connections + custom edge style
+        document.getElementById('add-node-btn').addEventListener('click', async () => {
+            if (layers.length === 0) {
+                showStatus('Add a layer first!');
+                return;
+            }
+
+            const layerOptions = layers.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+
+            let connectionHTML = '';
+            if (nodes.length > 0) {
+                connectionHTML = `
+                    <div class="input-group">
+                        <label>Connect to existing nodes (check to connect):</label>
+                        <div class="checkbox-list">
+                            ${nodes.map(n => `
+                                <div class="checkbox-item">
+                                    <label>
+                                        <input type="checkbox" name="connect" value="${n.id}">
+                                        <span>${n.label} (${n.layer.name})</span>
+                                    </label>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <h4>Style for new connections</h4>
+                    <div class="input-group">
+                        <label>Edge Color:</label>
+                        <input type="color" id="edge-color" value="#888888">
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label>Thickness (pixels):</label>
+                            <input type="number" id="edge-thickness" value="4" min="1" max="15" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Dashed:</label>
+                            <div style="display:flex; align-items:center; height:40px;">
+                                <input type="checkbox" id="edge-dashed">
+                                <span style="margin-left:8px;">Yes</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                connectionHTML = '<p style="color:#aaa;">No existing nodes to connect to yet.</p>';
+            }
+
+            const bodyHTML = `
+                <div class="input-group">
+                    <label>Node Label:</label>
+                    <input type="text" id="node-label" value="Node ${nodes.length + 1}" />
+                </div>
+                <div class="input-group">
+                    <label>Layer:</label>
+                    <select id="node-layer">${layerOptions}</select>
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X:</label>
+                        <input type="number" id="node-x" value="0" step="1" />
+                    </div>
+                    <div class="input-group">
+                        <label>Y:</label>
+                        <input type="number" id="node-y" value="0" step="1" />
+                    </div>
+                </div>
+                ${connectionHTML}
+            `;
+
+            const getValues = (body) => {
+                const values = {};
+                body.querySelectorAll('input[id], select[id]').forEach(el => {
+                    if (el.type === 'checkbox') {
+                        values[el.id] = el.checked;
+                    } else {
+                        values[el.id] = el.value;
+                    }
+                });
+                values.connectIds = Array.from(body.querySelectorAll('input[name="connect"]:checked')).map(cb => cb.value);
+                return values;
+            };
+
+            const result = await showModal('Add New Node', bodyHTML, null, getValues);
+            if (!result) return;
+
+            const label = result['node-label'].trim() || 'Node';
+            const layer = layers.find(l => l.id === parseInt(result['node-layer']));
+            const x = parseFloat(result['node-x']);
+            const y = parseFloat(result['node-y']);
+
+            if (isNaN(x) || isNaN(y) || x < layer.xMin || x > layer.xMax || y < layer.yMin || y > layer.yMax) {
+                showStatus('Coordinates out of bounds');
+                return;
+            }
+
+            const newId = `n${++nodeCounter}`;
+            const newNode = { id: newId, label, layer, x, y, z: layer.z };
+            nodes.push(newNode);
+
+            const hasConnections = result.connectIds && result.connectIds.length > 0;
+            if (hasConnections) {
+                const customColor = result['edge-color'];
+                const customThickness = parseInt(result['edge-thickness']) || 4;
+                const customDashed = result['edge-dashed'] || false;
+
+                result.connectIds.forEach(targetId => {
+                    const target = nodes.find(n => n.id === targetId);
+                    if (!target) return;
+
+                    const inter = layer.id !== target.layer.id;
+                    const alreadyExists = links.some(l => 
+                        (l.source === newId && l.target === targetId) ||
+                        (l.source === targetId && l.target === newId)
+                    );
+                    if (alreadyExists) return;
+
+                    links.push({
+                        source: newId,
+                        target: targetId,
+                        inter,
+                        layerColor: inter ? null : layer.color,
+                        customColor,
+                        thickness: customThickness,
+                        dashed: customDashed
+                    });
+                });
+            }
+
+            updateScene();
+            showStatus(`Added "${label}"${hasConnections ? ` with ${result.connectIds.length} custom edges` : ''}`);
+        });
+
+        // Label controls
+        document.getElementById('show-labels-checkbox').addEventListener('change', (e) => {
+            showLabels = e.target.checked;
+            updateLabelDisplay();
+        });
+
+        document.getElementById('label-font-size').addEventListener('change', (e) => {
+            labelFontSize = parseInt(e.target.value) || 14;
+            updateLabelDisplay();
+        });
+
+        // Other buttons remain the same as previous version
+        document.getElementById('clear-selection-btn').addEventListener('click', () => {
+            fromNode = null;
+            showStatus('Selection cleared');
+        });
+
+        document.getElementById('save-image-btn').addEventListener('click', () => {
+            renderer.render(scene, camera);
+            renderer.domElement.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `network-${Date.now()}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showStatus('Image saved');
+            });
+        });
+
+        document.getElementById('clear-all-btn').addEventListener('click', async () => {
+            if (layers.length === 0 && nodes.length === 0) {
+                showStatus('Nothing to clear');
+                return;
+            }
+            const res = await showModal('Clear All', '<p style="color:#aaa;">Remove everything? This cannot be undone.</p>');
+            if (res) {
+                clearAll();
+                showStatus('All cleared');
+            }
+        });
+
+        document.getElementById('example-btn').addEventListener('click', async () => {
+            let proceed = true;
+            if (layers.length > 0 || nodes.length > 0) {
+                const res = await showModal('Load Example', '<p style="color:#aaa;">This will replace the current graph. Continue?</p>');
+                proceed = !!res;
+            }
+            if (!proceed) return;
+
+            clearAll();
+
+            const exampleLayers = [
+                { name: 'Social', color: '#00ff88' },
+                { name: 'Work', color: '#ffaa00' },
+                { name: 'Family', color: '#0088ff' },
+                { name: 'Hobby', color: '#ff0088' }
+            ];
+
+            let z = 0;
+            exampleLayers.forEach(l => {
+                const layer = {
+                    id: layers.length,
+                    name: l.name,
+                    color: l.color,
+                    z,
+                    xMin: -300, xMax: 300, yMin: -300, yMax: 300
+                };
+                layers.push(layer);
+                addPlaneAndGrid(layer);
+                z -= layerSpacing;
+            });
+            updateLayersList();
+
+            const people = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank', 'Grace'];
+            people.forEach(person => {
+                layers.forEach(layer => {
+                    if (Math.random() > 0.3) {
+                        const radius = 200 * (0.6 + Math.random() * 0.4);
+                        const angle = Math.random() * Math.PI * 2;
+                        const x = Math.cos(angle) * radius;
+                        const y = Math.sin(angle) * radius;
+                        nodes.push({
+                            id: `n${++nodeCounter}`,
+                            label: person,
+                            layer,
+                            x, y, z: layer.z
+                        });
+                    }
+                });
+            });
+
+            // Intra-layer edges (default style)
+            layers.forEach(layer => {
+                const layerNodes = nodes.filter(n => n.layer.id === layer.id);
+                for (let i = 0; i < layerNodes.length; i++) {
+                    for (let j = i + 1; j < layerNodes.length; j++) {
+                        if (Math.random() < 0.15) {
+                            links.push({
+                                source: layerNodes[i].id,
+                                target: layerNodes[j].id,
+                                inter: false,
+                                layerColor: layer.color
+                            });
+                        }
+                    }
+                }
+            });
+
+            // Inter-layer edges (default style)
+            const byPerson = {};
+            nodes.forEach(n => {
+                if (!byPerson[n.label]) byPerson[n.label] = [];
+                byPerson[n.label].push(n);
+            });
+            Object.values(byPerson).forEach(group => {
+                for (let i = 0; i < group.length; i++) {
+                    for (let j = i + 1; j < group.length; j++) {
+                        if (Math.random() < 0.7) {
+                            links.push({
+                                source: group[i].id,
+                                target: group[j].id,
+                                inter: true
+                            });
+                        }
+                    }
+                }
+            });
+
+            updateScene();
+            showStatus('Example loaded!', 3000);
+        });
+
+        document.getElementById('delete-mode-btn').addEventListener('click', () => {
+            deleteMode = !deleteMode;
+            const btn = document.getElementById('delete-mode-btn');
+            btn.textContent = `🗑️ Delete Mode: ${deleteMode ? 'On' : 'Off'}`;
+            btn.style.background = deleteMode ? 'linear-gradient(135deg, #ff4444 0%, #aa2222 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            showStatus(deleteMode ? 'Delete Mode ON – click nodes to delete' : 'Delete Mode OFF');
+        });
+
+        document.getElementById('export-btn').addEventListener('click', () => {
+            if (layers.length === 0 && nodes.length === 0) {
+                showStatus('Nothing to export');
+                return;
+            }
+            const data = {
+                layers: layers.map(l => ({name: l.name, color: l.color, xMin: l.xMin, xMax: l.xMax, yMin: l.yMin, yMax: l.yMax, z: l.z})),
+                nodes: nodes.map(n => ({id: n.id, label: n.label, layerName: n.layer.name, x: n.x, y: n.y})),
+                links: links.map(l => ({
+                    source: l.source,
+                    target: l.target,
+                    customColor: l.customColor,
+                    thickness: l.thickness,
+                    dashed: l.dashed
+                }))
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `multilayer-network-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showStatus('Exported JSON');
+        });
+
+        document.getElementById('import-btn').addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const text = await file.text();
+                let data;
+                try { data = JSON.parse(text); } catch { showStatus('Invalid JSON'); return; }
+
+                const confirm = await showModal('Import Graph', '<p style="color:#aaa;">Replace current graph?</p>');
+                if (!confirm) return;
+
+                clearAll();
+
+                data.layers.forEach(l => {
+                    const layer = {
+                        id: layers.length,
+                        name: l.name,
+                        color: l.color || '#4a9eff',
+                        z: l.z ?? (layers.length === 0 ? 0 : layers[layers.length-1].z - layerSpacing),
+                        xMin: l.xMin ?? -400,
+                        xMax: l.xMax ?? 400,
+                        yMin: l.yMin ?? -400,
+                        yMax: l.yMax ?? 400
+                    };
+                    if (layers.some(ex => ex.name === layer.name)) return;
+                    layers.push(layer);
+                    addPlaneAndGrid(layer);
+                });
+                updateLayersList();
+
+                const layerMap = {};
+                layers.forEach(l => layerMap[l.name] = l);
+
+                let maxId = 0;
+                data.nodes.forEach(n => {
+                    const layer = layerMap[n.layerName];
+                    if (layer) {
+                        const num = parseInt(n.id.replace('n', '')) || 0;
+                        if (num > maxId) maxId = num;
+                        nodes.push({
+                            id: n.id,
+                            label: n.label || 'Node',
+                            layer,
+                            x: n.x || 0,
+                            y: n.y || 0,
+                            z: layer.z
+                        });
+                    }
+                });
+                nodeCounter = maxId + 1;
+
+                const nodeMap = {};
+                nodes.forEach(n => nodeMap[n.id] = n);
+
+                data.links.forEach(dl => {
+                    const s = nodeMap[dl.source];
+                    const t = nodeMap[dl.target];
+                    if (s && t) {
+                        const inter = s.layer.id !== t.layer.id;
+                        const newLink = {
+                            source: dl.source,
+                            target: dl.target,
+                            inter,
+                            layerColor: inter ? null : s.layer.color
+                        };
+                        if (dl.customColor) newLink.customColor = dl.customColor;
+                        if (dl.thickness !== undefined) newLink.thickness = dl.thickness;
+                        if (dl.dashed !== undefined) newLink.dashed = dl.dashed;
+                        links.push(newLink);
+                    }
+                });
+
+                updateScene();
+                showStatus('Imported successfully');
+            };
+            input.click();
+        });
+
+        document.getElementById('zoom-fit-btn').addEventListener('click', () => {
+            const objects = nodeMeshes.length > 0 ? nodeMeshes : planeMeshes;
+            if (objects.length === 0) return;
+
+            const box = new THREE.Box3();
+            objects.forEach(o => box.expandByObject(o));
+            box.expandByScalar(200);
+
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+
+            const fov = camera.fov * (Math.PI / 180);
+            let distance = (maxDim / 2) / Math.tan(fov / 2);
+            distance *= 1.8;
+
+            const direction = new THREE.Vector3(1, 1, 1).normalize();
+            camera.position.copy(center.clone().add(direction.multiplyScalar(distance)));
+            controls.target.copy(center);
+            controls.update();
+            showStatus('View fitted');
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            labelRenderer.setSize(container.clientWidth, container.clientHeight);
+            lineMaterials.forEach(mat => mat.resolution.set(container.clientWidth, container.clientHeight));
+        });
+
+        updateLayersList();
+        animate();
+        showStatus('Welcome! Add a layer to start', 4000);
+    </script>
+</body>
+</html>
